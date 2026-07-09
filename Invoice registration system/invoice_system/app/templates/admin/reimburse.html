@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>财务核销中心</h1>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="label">员工当前总可核销额度</div>
+    <div class="value">{{ format_currency(total_quota_sum) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">员工累计已核销</div>
+    <div class="value">{{ format_currency(used_quota_sum) }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">待核销发票金额</div>
+    <div class="value">{{ format_currency(total_amount) }}</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>搜索与筛选</h2>
+  <form method="get" class="filter-form">
+    <div class="filter-grid">
+      <div>
+        <label>员工姓名 / 工号</label>
+        <input type="text" name="keyword" value="{{ keyword or '' }}" placeholder="例如 Ceyang / E1001">
+      </div>
+      <div>
+        <label>发票类型</label>
+        <select name="invoice_type_id">
+          <option value="">全部类型</option>
+          {% for t in invoice_types %}
+          <option value="{{ t.id }}" {% if invoice_type_id|string == t.id|string %}selected{% endif %}>{{ t.type_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn primary" type="submit">搜索</button>
+      <a class="btn" href="{{ url_for('admin.reimburse') }}">重置</a>
+      <a class="btn" href="{{ url_for('admin.item_settings') }}">配置项</a>
+      <a class="btn" href="{{ url_for('admin.export_entry_excel') }}">导出录入明细</a>
+      <a class="btn" href="{{ url_for('admin.export_reimbursed_excel') }}">导出核销明细</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>员工核销列表</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>姓名</th>
+        <th>发票金额</th>
+        <th>状态（中文）</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in items %}
+      <tr>
+        <td>{{ (page - 1) * 10 + loop.index }}</td>
+        <td><a href="{{ url_for('admin.employee_detail', user_id=row.user_id) }}">{{ row.employee_name }}</a></td>
+        <td>{{ format_currency(row.invoice_total_amount or 0) }}</td>
+        <td>
+          {% if row.pending_count and row.pending_count > 0 and row.approved_count and row.approved_count > 0 %}
+          <span class="badge pending">待审核 / 待核销</span>
+          {% elif row.pending_count and row.pending_count > 0 %}
+          <span class="badge pending">待审核</span>
+          {% elif row.available_amount and row.available_amount > 0 %}
+          <span class="badge approved">待核销</span>
+          {% elif row.reimbursed_count and row.reimbursed_count > 0 %}
+          <span class="badge reimbursed">已核销</span>
+          {% else %}
+          <span class="badge rejected">无可核销</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.pending_count and row.pending_count > 0 %}
+          <a class="btn small primary" href="{{ url_for('admin.employee_detail', user_id=row.user_id) }}">去审核</a>
+          {% endif %}
+          {% if row.available_amount and row.available_amount > 0 %}
+          <button
+            type="button"
+            class="btn small danger"
+            onclick="openReimburseModal('{{ row.user_id }}', '{{ row.employee_name|e }}', '{{ row.remaining_quota or 0 }}', '{{ row.available_amount or 0 }}')">
+            核销
+          </button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="muted">暂无核销相关记录</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="table-summary">
+    <div><strong>汇总金额：</strong>{{ format_currency(total_amount or 0) }}</div>
+    {% if total_pages and total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+      <a class="btn small" href="{{ url_for('admin.reimburse', page=page-1, keyword=keyword, invoice_type_id=invoice_type_id) }}">上一页</a>
+      {% endif %}
+      <span class="muted">第 {{ page }} / {{ total_pages }} 页</span>
+      {% if page < total_pages %}
+      <a class="btn small" href="{{ url_for('admin.reimburse', page=page+1, keyword=keyword, invoice_type_id=invoice_type_id) }}">下一页</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div id="reimburseModal" class="modal-mask" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>员工核销</h3>
+      <button type="button" class="modal-close" onclick="closeReimburseModal()">×</button>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.reimburse') }}">
+      <div class="modal-body">
+        <input type="hidden" name="action" value="reimburse">
+        <input type="hidden" name="user_id" id="modal_user_id">
+
+        <div class="form-grid two-col">
+          <label>员工姓名</label>
+          <input type="text" id="modal_user_name" readonly class="readonly">
+
+          <label>可核销金额</label>
+          <input type="text" id="modal_total_quota" readonly class="readonly">
+
+          <label>核销金额 *</label>
+          <input type="number" step="0.01" min="0.01" name="amount" id="modal_amount" required oninput="updateRemainingQuota()">
+
+          <label>核销事项 *</label>
+          <select name="reimburse_item_id" required>
+            <option value="">请选择</option>
+            {% for item in reimburse_items %}
+            <option value="{{ item.id }}">{{ item.item_name }}</option>
+            {% endfor %}
+          </select>
+
+          <label>剩余可核销金额</label>
+          <input type="text" id="modal_remaining_amount" readonly class="readonly">
+
+          <label>备注</label>
+          <textarea name="finance_comment" maxlength="1000" rows="4" placeholder="请输入备注（可选）"></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeReimburseModal()">取消</button>
+        <button type="submit" class="btn danger">确认核销</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  let currentQuota = 0;
+  let currentMaxReimburse = 0;
+
+  function openReimburseModal(userId, userName, totalQuota, availableAmount) {
+    currentQuota = Number(totalQuota || 0);
+    currentMaxReimburse = Math.min(currentQuota, Number(availableAmount || 0));
+    document.getElementById("modal_user_id").value = userId;
+    document.getElementById("modal_user_name").value = userName;
+    document.getElementById("modal_total_quota").value = currentQuota.toFixed(2);
+    document.getElementById("modal_amount").value = currentMaxReimburse.toFixed(2);
+    document.getElementById("modal_amount").max = currentMaxReimburse.toFixed(2);
+    updateRemainingQuota();
+    document.getElementById("reimburseModal").style.display = "flex";
+  }
+
+  function updateRemainingQuota() {
+    const amount = Number(document.getElementById("modal_amount").value || 0);
+    const remaining = Math.max(currentQuota - amount, 0);
+    document.getElementById("modal_remaining_amount").value = remaining.toFixed(2);
+  }
+
+  function closeReimburseModal() {
+    document.getElementById("reimburseModal").style.display = "none";
+  }
+
+  window.addEventListener("click", function (e) {
+    const modal = document.getElementById("reimburseModal");
+    if (e.target === modal) {
+      closeReimburseModal();
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>发票登记系统</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">发票登记系统</div>
+  {% if current_user %}
+  <nav class="nav">
+    <a href="{{ url_for('main.home') }}">首页</a>
+    <a href="{{ url_for('invoice.create') }}">登记发票</a>
+    <a href="{{ url_for('invoice.my_list') }}">我的发票</a>
+    {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('admin.reimburse') }}">核销发票</a>
+      <span class="nav-menu">
+        <span class="nav-menu-title">配置项</span>
+        <span class="nav-menu-list">
+          <a href="{{ url_for('admin.invoice_type_settings') }}">发票事项</a>
+          <a href="{{ url_for('admin.reimburse_item_settings') }}">核销事项</a>
+        </span>
+      </span>
+    {% endif %}
+    <a href="{{ url_for('auth.logout') }}">退出</a>
+  </nav>
+  {% endif %}
+</header>
+<main class="container">
+  {% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        var msgs = JSON.parse('{{ messages | tojson | safe }}');
+        alert(msgs.join("\n"));
+      });
+    </script>
+  {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>员工额度明细</h1>
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+    <div><h2 style="margin:0;">{{ user.name }}</h2><div class="muted">工号：{{ user.employee_no }} ｜ 角色：{{ user.role }}</div></div>
+    <div><a class="btn" href="{{ url_for('admin.reimburse') }}">返回核销中心</a></div>
+  </div>
+</div>
+<div class="stats">
+  <div class="stat-card"><div class="label">总额度</div><div class="value">{{ format_currency(total_quota) }}</div></div>
+  <div class="stat-card"><div class="label">已使用额度</div><div class="value">{{ format_currency(used_quota) }}</div></div>
+  <div class="stat-card"><div class="label">剩余额度</div><div class="value">{{ format_currency(remaining_quota) }}</div></div>
+</div>
+<div class="stats">
+  <div class="stat-card"><div class="label">总发票数</div><div class="value">{{ total_count }}</div></div>
+  <div class="stat-card accent"><div class="label">Pending</div><div class="value">{{ pending_count }}</div></div>
+  <div class="stat-card"><div class="label">Approved</div><div class="value">{{ approved_count }}</div></div>
+  <div class="stat-card"><div class="label">Rejected</div><div class="value">{{ rejected_count }}</div></div>
+  <div class="stat-card"><div class="label">Reimbursed</div><div class="value">{{ reimbursed_count }}</div></div>
+</div>
+<div class="card">
+  <h2>该员工全部发票</h2>
+  <form method="post">
+    <div class="batch-actions">
+      <input type="text" name="finance_comment" maxlength="255" placeholder="财务备注（可选）">
+      <button class="btn primary" type="submit" name="action" value="approve">批量通过</button>
+      <button class="btn warning" type="submit" name="action" value="reject">批量驳回</button>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="check_all" onclick="toggleAllInvoices(this)"></th>
+          <th>ID</th>
+          <th>发票号</th>
+          <th>项目名称</th>
+          <th>金额</th>
+          <th>分配额度</th>
+          <th>开票类型</th>
+          <th>状态</th>
+          <th>附件</th>
+          <th>财务备注</th>
+          <th>提交时间</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in invoices %}
+        <tr>
+          <td>
+            {% if row.status != 'Reimbursed' %}
+            <input type="checkbox" name="invoice_ids" value="{{ row.id }}" class="invoice-check">
+            {% endif %}
+          </td>
+          <td>{{ row.id }}</td>
+          <td>{{ row.invoice_no }}</td>
+          <td>{{ row.project_name or '-' }}</td>
+          <td>{{ format_currency(row.amount) }}</td>
+          <td>
+            {% if row.status != 'Reimbursed' %}
+            <input class="amount-input" type="number" step="0.01" min="0" max="{{ row.amount or 0 }}" name="approved_amount_{{ row.id }}" value="{% if row.status == 'Approved' %}{{ row.approved_amount or 0 }}{% else %}{{ row.amount or 0 }}{% endif %}">
+            {% else %}
+            {{ format_currency(row.approved_amount or 0) }}
+            {% endif %}
+          </td>
+          <td>{{ row.type_name }}</td>
+          <td><span class="badge {{ row.status|lower }}">{{ row.status }}</span></td>
+          <td>
+            {% if row.file_path %}
+              <a class="btn small" href="{{ url_for('admin.view_invoice_file', invoice_id=row.id) }}" target="_blank">查看</a>
+              <a class="btn small" href="{{ url_for('admin.download_invoice_file', invoice_id=row.id) }}">下载</a>
+            {% else %}<span class="muted">无附件</span>{% endif %}
+          </td>
+          <td>{{ row.finance_comment or '-' }}</td>
+          <td>{{ row.created_at }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="11" class="muted">该员工暂无发票记录</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </form>
+</div>
+<script>
+  function toggleAllInvoices(source) {
+    document.querySelectorAll(".invoice-check").forEach(function (item) {
+      item.checked = source.checked;
+    });
+  }
+</script>
+{% endblock %}
