@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="invoice-create-heading">
+  <div>
+    <h1>登记发票</h1>
+    <p>上传发票后自动识别，请在右侧核对信息并提交。</p>
+  </div>
+</div>
+
+<div class="invoice-create-layout">
+  <section class="card invoice-upload-panel" aria-labelledby="upload-panel-title">
+    <div class="invoice-panel-header">
+      <div>
+        <h2 id="upload-panel-title">上传发票</h2>
+        <p>支持 PDF、PNG、JPG、JPEG，文件大小不超过 20 MB</p>
+      </div>
+    </div>
+
+    <form ref="invoiceUploadForm" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="upload">
+      <input
+        id="invoiceFileInput"
+        ref="invoiceFileInput"
+        class="invoice-file-input"
+        type="file"
+        name="invoice_file"
+        accept=".pdf,.png,.jpg,.jpeg"
+        required
+        @change="uploadSelectedFile"
+      >
+      <label
+        for="invoiceFileInput"
+        class="invoice-dropzone"
+        data-testid="invoice-dropzone"
+        :class="{ 'is-uploading': uploading, 'is-dragging': draggingInvoice }"
+        @dragenter.prevent="draggingInvoice = true"
+        @dragover.prevent="draggingInvoice = true"
+        @dragleave.prevent="draggingInvoice = false"
+        @drop.prevent="handleInvoiceDrop"
+      >
+        <span class="invoice-upload-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/>
+          </svg>
+        </span>
+        <strong>将发票拖拽到此处</strong>
+        <span>或 <b>点击选择文件</b></span>
+        <small>选择后将自动上传并识别</small>
+      </label>
+      <div class="invoice-upload-status" aria-live="polite">[[ uploadStatus ]]</div>
+    </form>
+
+    <div class="invoice-preview-section">
+      <div class="invoice-preview-heading">
+        <h3>发票预览</h3>
+        {% if ocr.pdf_filename %}<span title="{{ ocr.pdf_filename }}">{{ ocr.pdf_filename }}</span>{% endif %}
+      </div>
+      <div ref="invoicePreview" class="invoice-inline-preview" data-testid="invoice-preview">
+        {% if ocr.file_path %}
+          {% set preview_url = url_for('uploaded_file', filename=ocr.file_path) %}
+          {% if ocr.pdf_filename and ocr.pdf_filename.lower().endswith('.pdf') %}
+            <iframe src="{{ preview_url }}" title="发票 PDF 预览"></iframe>
+          {% else %}
+            <img src="{{ preview_url }}" alt="已上传的发票预览">
+          {% endif %}
+        {% else %}
+          <div class="invoice-preview-empty">
+            <span aria-hidden="true">⌑</span>
+            <p>上传后将在这里显示发票预览</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="card invoice-info-panel" aria-labelledby="invoice-info-title">
+    <div class="invoice-panel-header">
+      <div>
+        <h2 id="invoice-info-title">检查并提交发票信息</h2>
+        <p>请核对识别结果，带 * 的项目为必填项</p>
+      </div>
+      {% if ocr.file_path %}<span class="invoice-recognition-badge">识别完成</span>{% endif %}
+    </div>
+
+    <form method="post" class="invoice-info-form">
+      <input type="hidden" name="action" value="submit">
+      <input type="hidden" name="file_path" value="{{ ocr.file_path or '' }}">
+
+      <div class="invoice-field">
+        <label for="receipt_date">收票日期</label>
+        <input id="receipt_date" type="date" name="receipt_date" value="{{ ocr.receipt_date or '' }}">
+      </div>
+
+      <div class="invoice-field">
+        <label for="submitter_name">交票人</label>
+        <input id="submitter_name" type="text" name="submitter_name" value="{{ ocr.submitter_name or current_user.name }}" class="readonly" readonly>
+      </div>
+
+      <div class="invoice-field invoice-field-wide">
+        <label for="pdf_filename">文档名称</label>
+        <input id="pdf_filename" type="text" name="pdf_filename" value="{{ ocr.pdf_filename or '' }}" class="readonly" readonly>
+      </div>
+
+      <div class="invoice-field">
+        <label for="invoice_date">开票日期</label>
+        <input id="invoice_date" type="date" name="invoice_date" value="{{ ocr.invoice_date or '' }}">
+      </div>
+
+      <div class="invoice-field">
+        <label for="invoice_no">发票号码 <em>*</em></label>
+        <input id="invoice_no" type="text" name="invoice_no" value="{{ ocr.invoice_no or '' }}" required>
+      </div>
+
+      <div class="invoice-field">
+        <label for="buyer_name">购买方信息名称</label>
+        <input id="buyer_name" type="text" name="buyer_name" value="{{ ocr.buyer_name or '' }}">
+      </div>
+
+      <div class="invoice-field">
+        <label for="buyer_tax_no">购买方统一社会信用代码</label>
+        <input id="buyer_tax_no" type="text" name="buyer_tax_no" value="{{ ocr.buyer_tax_no or '' }}">
+      </div>
+
+      <div class="invoice-field">
+        <label for="seller_name">销售方信息名称</label>
+        <input id="seller_name" type="text" name="seller_name" value="{{ ocr.seller_name or '' }}">
+      </div>
+
+      <div class="invoice-field">
+        <label for="seller_tax_no">销售方统一社会信用代码</label>
+        <input id="seller_tax_no" type="text" name="seller_tax_no" value="{{ ocr.seller_tax_no or '' }}">
+      </div>
+
+      <div class="invoice-field">
+        <label for="amount">金额（价税合计小写） <em>*</em></label>
+        <input id="amount" type="number" step="0.01" name="amount" value="{{ ocr.amount or '' }}" required>
+      </div>
+
+      <div class="invoice-field">
+        <label for="project_name">项目名称</label>
+        <input id="project_name" type="text" name="project_name" value="{{ ocr.project_name or '' }}">
+      </div>
+
+      <div class="invoice-field invoice-field-wide">
+        <label for="invoice_type_id">开票类型 <em>*</em></label>
+        <select id="invoice_type_id" name="invoice_type_id" required>
+          <option value="">请选择</option>
+          {% for t in invoice_types %}
+          <option value="{{ t.id }}" {% if ocr.invoice_type_id|string == t.id|string %}selected{% endif %}>{{ t.type_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="invoice-submit-row">
+        <span>提交前请确认发票号码、金额及开票类型</span>
+        <button class="btn primary invoice-submit-button" type="submit">提交发票</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+{% endblock %}

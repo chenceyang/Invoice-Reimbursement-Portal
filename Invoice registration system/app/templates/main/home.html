@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>欢迎，{{ current_user.name }}</h1>
+<div class="stats">
+  <div class="stat-card"><div class="label">总额度</div><div class="value">{{ format_currency(quota_total) }}</div></div>
+  <div class="stat-card"><div class="label">已使用额度</div><div class="value">{{ format_currency(quota_used) }}</div></div>
+  <div class="stat-card"><div class="label">剩余额度</div><div class="value">{{ format_currency(quota_remaining) }}</div></div>
+  <div class="stat-card"><div class="label">我的发票数量</div><div class="value">{{ my_invoice_count }}</div></div>
+  {% if current_user.role == 'admin' %}
+  <div class="stat-card accent"><div class="label">待处理发票</div><div class="value">{{ admin_pending_count }}</div></div>
+  {% endif %}
+</div>
+<div class="actions">
+  <a class="btn primary" href="{{ url_for('invoice.create') }}">登记发票</a>
+  <a class="btn" href="{{ url_for('invoice.my_list') }}">我的发票</a>
+  <a class="btn" href="{{ url_for('invoice.my_reimburse_records') }}">我的消费记录</a>
+  {% if current_user.role == 'admin' %}
+  <a class="btn danger" href="{{ url_for('admin.reimburse') }}">核销</a>
+  <a class="btn" href="{{ url_for('admin.consumption_records') }}">消费记录</a>
+  <a class="btn" href="{{ url_for('admin.invoice_type_settings') }}">配置发票事项</a>
+  <a class="btn" href="{{ url_for('admin.reimburse_item_settings') }}">配置核销事项</a>
+  {% endif %}
+</div>
+<div class="card">
+  <h2>最近发票</h2>
+  <table class="table">
+    <thead><tr><th>发票号</th><th>项目</th><th>金额</th><th>类型</th><th>状态</th><th>提交时间</th></tr></thead>
+    <tbody>
+    {% for row in recent_invoices %}
+      <tr>
+        <td>{{ row.invoice_no }}</td><td>{{ row.project_name or '-' }}</td><td>{{ format_currency(row.amount) }}</td>
+        <td>{{ row.type_name }}</td>
+        <td><span class="badge {{ row.status|lower }}">{{ status_label(row.status) }}</span></td><td>{{ row.created_at }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">暂无发票记录</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="table-summary">
+    <div><span class="muted">共 {{ recent_total or 0 }} 条数据</span></div>
+    <form method="get" class="pagination jump-form">
+      <a class="btn small {% if recent_page <= 1 %}disabled{% endif %}" href="{{ url_for('main.home', recent_page=recent_page-1 if recent_page > 1 else 1) }}">上一页</a>
+      <span class="muted">第 {{ recent_page }} / {{ recent_total_pages or 1 }} 页</span>
+      <a class="btn small {% if not recent_total_pages or recent_page >= recent_total_pages %}disabled{% endif %}" href="{{ url_for('main.home', recent_page=recent_page+1 if recent_total_pages and recent_page < recent_total_pages else recent_page) }}">下一页</a>
+      <label class="muted">跳转到</label>
+      <input class="page-input" type="number" min="1" max="{{ recent_total_pages or 1 }}" name="recent_page" value="{{ recent_page }}">
+      <button class="btn small" type="submit">跳转</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

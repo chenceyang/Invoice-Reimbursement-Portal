@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>消费记录</h1>
+
+<div class="card">
+  <h2>搜索与筛选</h2>
+  <form method="get" class="filter-form">
+    <div class="filter-grid">
+      <div>
+        <label>员工姓名 / 工号</label>
+        <input type="text" name="keyword" value="{{ keyword or '' }}" placeholder="例如 Ceyang / E1001">
+      </div>
+      <div>
+        <label>发票类型</label>
+        <select name="invoice_type_id">
+          <option value="">全部类型</option>
+          {% for t in invoice_types %}
+          <option value="{{ t.id }}" {% if invoice_type_id|string == t.id|string %}selected{% endif %}>{{ t.type_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>开始日期</label>
+        <input type="date" name="start_date" value="{{ start_date or '' }}">
+      </div>
+      <div>
+        <label>结束日期</label>
+        <input type="date" name="end_date" value="{{ end_date or '' }}">
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn primary" type="submit">搜索</button>
+      <a class="btn" href="{{ url_for('admin.consumption_records') }}">重置</a>
+      <a class="btn" href="{{ url_for('admin.export_reimbursed_excel', keyword=keyword, invoice_type_id=invoice_type_id, start_date=start_date, end_date=end_date) }}">导出消费记录</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="section-title-row">
+    <h2>消费记录</h2>
+    <a class="btn" href="{{ url_for('admin.export_entry_excel', keyword=keyword, invoice_type_id=invoice_type_id) }}">导出录入明细</a>
+  </div>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>核销日期</th>
+        <th>姓名</th>
+        <th>核销金额</th>
+        <th>核销事项</th>
+        <th>发票号</th>
+        <th>项目名称</th>
+        <th>备注</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in records %}
+      <tr>
+        <td>{{ (page - 1) * 10 + loop.index }}</td>
+        <td>{{ row.reimbursed_at }}</td>
+        <td>{{ row.employee_name }}</td>
+        <td>{{ format_currency(row.reimburse_amount or 0) }}</td>
+        <td>{{ row.reimburse_item_name }}</td>
+        <td>{{ row.invoice_no or '-' }}</td>
+        <td>{{ row.project_name or '-' }}</td>
+        <td>{{ row.comment or '-' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="muted">暂无消费记录</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="table-summary">
+    <div><strong>汇总金额：</strong>{{ format_currency(total_amount or 0) }} <span class="muted">共 {{ total or 0 }} 条数据</span></div>
+    <form method="get" class="pagination jump-form">
+      <input type="hidden" name="keyword" value="{{ keyword or '' }}">
+      <input type="hidden" name="invoice_type_id" value="{{ invoice_type_id or '' }}">
+      <input type="hidden" name="start_date" value="{{ start_date or '' }}">
+      <input type="hidden" name="end_date" value="{{ end_date or '' }}">
+      <a class="btn small {% if page <= 1 %}disabled{% endif %}" href="{{ url_for('admin.consumption_records', page=page-1 if page > 1 else 1, keyword=keyword, invoice_type_id=invoice_type_id, start_date=start_date, end_date=end_date) }}">上一页</a>
+      <span class="muted">第 {{ page }} / {{ total_pages or 1 }} 页</span>
+      <a class="btn small {% if not total_pages or page >= total_pages %}disabled{% endif %}" href="{{ url_for('admin.consumption_records', page=page+1 if total_pages and page < total_pages else page, keyword=keyword, invoice_type_id=invoice_type_id, start_date=start_date, end_date=end_date) }}">下一页</a>
+      <label class="muted">跳转到</label>
+      <input class="page-input" type="number" min="1" max="{{ total_pages or 1 }}" name="page" value="{{ page }}">
+      <button class="btn small" type="submit">跳转</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

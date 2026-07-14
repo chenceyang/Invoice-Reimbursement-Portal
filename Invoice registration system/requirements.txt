@@ -1,0 +1,15 @@
+# Web and configuration
+Flask==3.1.3
+python-dotenv==1.2.2
+PyMySQL==1.2.0
+
+# Excel and PDF processing
+openpyxl==3.1.5
+pdfplumber==0.11.10
+PyPDF2==3.0.1
+Pillow==12.3.0
+
+# OCR (CPU)
+paddleocr==3.7.0
+paddlepaddle==3.2.2
+
